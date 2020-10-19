@@ -73,16 +73,22 @@ or ``MIDDLEWARE`` if using Django 1.10 or higher:
     required = '_password_policies_change_required'
     td = timedelta(seconds=settings.PASSWORD_DURATION_SECONDS)
 
+    def datetime_to_str_datetime(self, date_time):
+        return date_time.strftime("%Y-%m-%d %H:%M:%S%z")
+
+    def str_datetime_to_datetime(self, str_date_time):
+        return datetime.strptime(str_date_time,"%Y-%m-%d %H:%M:%S%z")
+
     def _check_history(self, request):
         if not request.session.get(self.last, None):
             newest = PasswordHistory.objects.get_newest(request.user)
             if newest:
-                request.session[self.last] = newest.created
+                request.session[self.last] = self.datetime_to_str_datetime(newest.created)
             else:
                 # TODO: This relies on request.user.date_joined which might not
                 # be available!!!
-                request.session[self.last] = request.user.date_joined
-        if request.session[self.last] < self.expiry_datetime:
+                request.session[self.last] = self.datetime_to_str_datetime(request.user.date_joined)
+        if self.str_datetime_to_datetime(request.session[self.last]) < self.expiry_datetime:
             request.session[self.required] = True
             if not PasswordChangeRequired.objects.filter(user=request.user).count():
                 PasswordChangeRequired.objects.create(user=request.user)
@@ -92,17 +98,18 @@ or ``MIDDLEWARE`` if using Django 1.10 or higher:
     def _check_necessary(self, request):
 
         if not request.session.get(self.checked, None):
-            request.session[self.checked] = self.now
+            request.session[self.checked] = self.datetime_to_str_datetime(self.now)
 
             #  If the PASSWORD_CHECK_ONLY_AT_LOGIN is set, then only check at the beginning of session, which we can
             #  tell by self.now time having just been set.
-        if not settings.PASSWORD_CHECK_ONLY_AT_LOGIN or request.session.get(self.checked, None) == self.now:
+        if not settings.PASSWORD_CHECK_ONLY_AT_LOGIN or \
+            request.session.get(self.checked, None) == self.datetime_to_str_datetime(self.now):
             # If a password change is enforced we won't check
             # the user's password history, thus reducing DB hits...
             if PasswordChangeRequired.objects.filter(user=request.user).count():
                 request.session[self.required] = True
                 return
-            if request.session[self.checked] < self.expiry_datetime:
+            if self.str_datetime_to_datetime(request.session[self.checked]) < self.expiry_datetime:
                 try:
                     del request.session[self.last]
                     del request.session[self.checked]

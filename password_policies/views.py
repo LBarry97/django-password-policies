@@ -86,6 +86,9 @@ A view that allows logged in users to change their password.
             form_class = self.get_form_class()
         return form_class(self.request.user, **self.get_form_kwargs())
 
+    def datetime_to_str_datetime(self, date_time):
+        return date_time.strftime("%Y-%m-%d %H:%M:%S%z")
+
     def get_success_url(self):
         """
 Returns a query string field with a previous URL if available (Mimicing
@@ -98,6 +101,7 @@ if set, otherwise the URL to the :class:`PasswordChangeDoneView`.
         last = '_password_policies_last_changed'
         required = '_password_policies_change_required'
         now = timezone.now()
+        now = self.datetime_to_str_datetime(now)
         self.request.session[checked] = now
         self.request.session[last] = now
         self.request.session[required] = False
